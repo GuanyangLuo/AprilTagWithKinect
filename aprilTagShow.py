@@ -1,9 +1,26 @@
-from freenect import sync_get_depth as get_depth, sync_get_video as get_video
+import freenect
 import cv2  
 import numpy as np
 import apriltag
+import frame_convert2
 
+cv2.namedWindow('Depth')
+cv2.namedWindow('Video')
+print('Press ESC in window to stop')
+
+imgCount=0
+
+def get_depth():
+    return frame_convert2.pretty_depth_cv(freenect.sync_get_depth()[0])
+
+
+def get_video():
+    return frame_convert2.video_cv(freenect.sync_get_video()[0])
+    
 def detect_apriltag(gray, image):
+    
+    global imgCount    
+    
     options = apriltag.DetectorOptions(families="tag36h11")
     detector = apriltag.Detector(options)
     #results = detector.detect(img=gray,True, camera_params=[544.021136,542.307110,308.111905,261.603373], tag_size=0.044)
@@ -13,9 +30,8 @@ def detect_apriltag(gray, image):
         print("[INFO] {} total AprilTags detected".format(len(results)))
     else:
         print("No AprilTag Detected")
-        return
+        return image
 
-    image = np.array(image)
     # loop over the AprilTag detection results
     for r in results:
         # extract the bounding box (x, y)-coordinates for the AprilTag
@@ -34,12 +50,11 @@ def detect_apriltag(gray, image):
         
         # draw the center (x, y)-coordinates of the AprilTag
         (cX, cY) = (int(r.center[0]), int(r.center[1]))
-        cv2.circle(image, (cX, cY), 5, (0, 0, 255), -1)
+        #cv2.circle(image, (cX, cY), 5, (0, 0, 255), -1)
         
         # draw the tag family on the image
         tagFamily = r.tag_family.decode("utf-8")
-        cv2.putText(image, tagFamily, (ptA[0], ptA[1] - 15),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+       
         #print("[INFO] tag family: {}".format(tagFamily))
         M,e1,e2 =detector.detection_pose(r,[544.021136,542.307110,308.111905,261.603373])
         #w:QR code length
@@ -48,30 +63,34 @@ def detect_apriltag(gray, image):
         
         dist=(t[0]**2+t[1]**2+t[2]**2)**0.5
         
+        showStr="dist:"+str(dist)
+        
+        cv2.putText(image, showStr, (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        
         print("[INFO] dist:",dist," tag pose:",t)
+    
+    #save some photo
+    if imgCount<50:
+        cv2.imwrite("/home/gry/AprilDistImg/"+str(imgCount)+".jpg",image)   
+        imgCount=imgCount+1
+        print("image saved")
+    
+    return image
 
-def doloop():
-    global depth, rgb
-    while True:
-        # Get a fresh frame
-        (depth,_), (rgb,_) = get_depth(), get_video()
-        
-        # Build a two panel color image
-        d3 = np.dstack((depth,depth,depth)).astype(np.uint8)
-        da = np.hstack((d3,rgb))
-        
-        # detect apriltag
-        data = da[::2,::2,::-1]
-        #image = cv2.imread(data)
-        gray = cv2.cvtColor(data, cv2.COLOR_RGB2GRAY)
-        
-        detect_apriltag(gray, data)
 
-        # Simple Downsample
-        cv2.imshow('both', np.array(data))
-        if cv2.waitKey(1000)==27:
-            break
+while 1:
+    cv2.imshow('Depth', get_depth())
+    
+    #process the rgb image
+    image=get_video()
+    
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    image=detect_apriltag(gray,image.copy())
+    
+    cv2.imshow('Video', image)
+    
+    
+    if cv2.waitKey(100) == 27:
+        break
 
-	
-        
-doloop()
