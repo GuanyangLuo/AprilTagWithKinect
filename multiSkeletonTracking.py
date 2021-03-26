@@ -11,6 +11,29 @@ nite2.initialize()
 devList = openni2.Device.open_all()
 utList = []
 
+# +x is toward downtown LA, +y is toward the ceilling, +z is toward the sink
+left_theta = -np.pi/2
+right_theta = np.pi/2
+left_x = -100
+right_x = 100
+left_y = 121
+right_y = 121
+
+left_tf = np.array([[np.cos(left_theta), 0, -np.sin(left_theta), left_x],
+                    [0, 1, 0, left_y],
+                    [np.sin(left_theta), 0, np.cos(left_theta), 0],
+                    [0, 0, 0, 1]])
+right_tf = np.array([[np.cos(right_theta), 0, -np.sin(right_theta), right_x],
+                    [0, 1, 0, right_y],
+                    [np.sin(right_theta), 0, np.cos(right_theta), 0],
+                    [0, 0, 0, 1]])
+
+device_0_is_left_kinect = True
+if device_0_is_left_kinect:
+    tf_list = [left_tf, right_tf]
+else:
+    tf_list = [right_tf, right_tf]
+
 try:
     #userTracker = nite2.UserTracker(dev)
     for i in range(0,len(devList)):
@@ -47,9 +70,10 @@ while True:
                     userTracker.start_skeleton_tracking(user.id)
                 elif user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED:
                     head = user.skeleton.joints[nite2.JointType.NITE_JOINT_HEAD]
+                    tf_head = tf_list[i] @ (np.array([head.position.x,head.position.y,head.position.z,1]).T)
 
                     confidence = head.positionConfidence
-                    print("Head: (x:%dmm, y:%dmm, z:%dmm), confidence: %.2f" % (head.position.x,head.position.y,head.position.z,confidence))
+                    print("Head: (x:%dmm, y:%dmm, z:%dmm), confidence: %.2f" % (tf_head[0],tf_head[1],tf_head[3],confidence))
     
         
         #RGB
